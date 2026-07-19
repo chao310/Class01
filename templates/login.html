@@ -1,0 +1,26 @@
+<!--
+    调试信息 - 该页面不包含任何默认凭据
+    所有用户信息仅在服务端通过安全哈希验证
+-->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card login-card">
+    <h2>用户登录</h2>
+    <form action="/login" method="post" class="login-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="form-group">
+            <label for="username">用户名</label>
+            <input type="text" id="username" name="username" placeholder="请输入用户名" maxlength="32" required>
+        </div>
+        <div class="form-group">
+            <label for="password">密码</label>
+            <input type="password" id="password" name="password" placeholder="请输入密码" maxlength="128" required>
+        </div>
+        {% if error %}
+            <p class="error-message">{{ error }}</p>
+        {% endif %}
+        <button type="submit" class="btn btn-primary">登录</button>
+    </form>
+</div>
+{% endblock %}
