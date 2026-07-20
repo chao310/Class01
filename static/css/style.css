@@ -188,3 +188,71 @@ a {
     max-width: 420px;
     margin: 0 auto;
 }
+
+/* === Search === */
+.search-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.search-input {
+    flex: 1;
+    padding: 10px 14px;
+    font-size: 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.search-input:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
+
+.search-results h3 {
+    font-size: 16px;
+    color: #2d3748;
+    margin-bottom: 12px;
+}
+
+/* === Result Table === */
+.result-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.result-table thead {
+    background: #f7fafc;
+}
+
+.result-table th {
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 600;
+    color: #4a5568;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.result-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #edf2f7;
+    color: #2d3748;
+}
+
+.result-table tbody tr:hover {
+    background: #f7fafc;
+}
+
+/* === Success Message === */
+.success-message {
+    color: #276749;
+    font-size: 14px;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: #f0fff4;
+    border: 1px solid #c6f6d5;
+    border-radius: 4px;
+}

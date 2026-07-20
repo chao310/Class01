@@ -15,11 +15,55 @@
         </div>
         <a href="/logout" class="btn btn-danger">退出登录</a>
     </div>
+
+    {# 搜索功能 #}
+    <div class="card">
+        <h2>搜索用户</h2>
+        <form action="/search" method="get" class="search-form">
+            <div class="search-group">
+                <input type="text" name="keyword" placeholder="输入用户名或邮箱搜索" value="{{ keyword or '' }}" class="search-input">
+                <button type="submit" class="btn btn-primary">搜索</button>
+            </div>
+        </form>
+    </div>
 {% else %}
     <div class="card">
         <h2>请先登录</h2>
         <p class="text-muted">您尚未登录，请先登录系统。</p>
         <a href="/login" class="btn btn-primary">前往登录</a>
+    </div>
+{% endif %}
+
+{# 搜索结果区域（独立于登录状态，确保搜索结果始终显示） #}
+{% if search_results is defined %}
+    <div class="card">
+        {% if search_results %}
+            <div class="search-results">
+                <h3>搜索结果{% if keyword %}："{{ keyword }}"{% endif %}</h3>
+                <table class="result-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>用户名</th>
+                            <th>邮箱</th>
+                            <th>手机</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in search_results %}
+                        <tr>
+                            <td>{{ row.id }}</td>
+                            <td>{{ row.username }}</td>
+                            <td>{{ row.email }}</td>
+                            <td>{{ row.phone }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="text-muted">无搜索结果</p>
+        {% endif %}
     </div>
 {% endif %}
 {% endblock %}

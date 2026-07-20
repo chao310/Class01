@@ -1,6 +1,7 @@
 import os
 import time
 import secrets
+import sqlite3
 from functools import wraps
 
 from flask import Flask, render_template, request, redirect, session, abort
@@ -113,6 +114,36 @@ def _safe_user_info(username: str) -> dict | None:
 
 
 # ============================================================
+# [新增] 初始化 SQLite 数据库
+# ============================================================
+def init_db():
+    """初始化 SQLite 数据库，创建 users 表并插入默认用户"""
+    os.makedirs("data", exist_ok=True)
+    conn = sqlite3.connect("data/users.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            email TEXT,
+            phone TEXT
+        )
+    """)
+    # 插入默认用户（明文密码），使用 INSERT OR IGNORE 防止重复
+    default_users = [
+        ("admin", "admin123", "admin@example.com", "13800138000"),
+        ("alice", "alice2025", "alice@example.com", "13900139001"),
+    ]
+    for u, p, e, ph in default_users:
+        conn.execute(
+            f"INSERT OR IGNORE INTO users (username, password, email, phone) VALUES ('{u}', '{p}', '{e}', '{ph}')"
+        )
+    conn.commit()
+    conn.close()
+
+
+# ============================================================
 # 路由：首页
 # ============================================================
 @app.route("/")
@@ -172,7 +203,63 @@ def login():
         )
 
     # GET 请求：生成 CSRF token 传入模板
-    return render_template("login.html", csrf_token=_generate_csrf_token())
+    msg = request.args.get("msg")
+    return render_template("login.html", csrf_token=_generate_csrf_token(), msg=msg)
+
+
+# ============================================================
+# 路由：注册
+# ============================================================
+@app.route("/register", methods=["GET", "POST"])
+@csrf_required
+def register():
+    if request.method == "POST":
+        username = request.form.get("username") or ""
+        password = request.form.get("password") or ""
+        email = request.form.get("email") or ""
+        phone = request.form.get("phone") or ""
+
+        # 使用 f-string 拼接 SQL（故意不转义，存在 SQL 注入漏洞）
+        query = f"INSERT INTO users (username, password, email, phone) VALUES ('{username}', '{password}', '{email}', '{phone}')"
+        print(f"[SQL] {query}")
+        conn = sqlite3.connect("data/users.db")
+        try:
+            conn.execute(query)
+            conn.commit()
+        except Exception as e:
+            conn.close()
+            return render_template("register.html", error=f"注册失败：{e}", csrf_token=_generate_csrf_token())
+        conn.close()
+        return redirect("/login?msg=注册成功，请登录")
+
+    return render_template("register.html", csrf_token=_generate_csrf_token())
+
+
+# ============================================================
+# 路由：搜索
+# ============================================================
+@app.route("/search")
+def search():
+    keyword = request.args.get("keyword") or ""
+
+    # 使用 f-string 拼接 SQL（故意不转义，存在 SQL 注入漏洞）
+    query = f"SELECT id, username, email, phone FROM users WHERE username LIKE '%{keyword}%' OR email LIKE '%{keyword}%'"
+    print(f"[SQL] {query}")
+
+    results = []
+    conn = sqlite3.connect("data/users.db")
+    try:
+        cursor = conn.execute(query)
+        rows = cursor.fetchall()
+        for row in rows:
+            results.append({"id": row[0], "username": row[1], "email": row[2], "phone": row[3]})
+    except Exception as e:
+        print(f"[SQL Error] {e}")
+    conn.close()
+
+    username = session.get("username")
+    user_info = _safe_user_info(username) if username else None
+    return render_template("index.html", user=user_info, search_results=results, keyword=keyword)
 
 
 # ============================================================
@@ -188,6 +275,7 @@ def logout():
 # 启动
 # ============================================================
 if __name__ == "__main__":
+    init_db()
     # [修复] debug 模式由环境变量控制，生产环境默认关闭
     debug_mode = os.environ.get("FLASK_DEBUG", "0") == "1"
     app.run(host="0.0.0.0", port=5000, debug=debug_mode)
