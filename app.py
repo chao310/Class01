@@ -2,10 +2,12 @@ import os
 import time
 import secrets
 import sqlite3
+import uuid
 from functools import wraps
 
-from flask import Flask, render_template, request, redirect, session, abort
+from flask import Flask, render_template, request, redirect, session, abort, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
@@ -21,6 +23,7 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=False,          # 生产环境应设为 True (HTTPS)
+    MAX_CONTENT_LENGTH=16 * 1024 * 1024,  # 最大上传 16MB
 )
 
 # ============================================================
@@ -111,6 +114,42 @@ def _safe_user_info(username: str) -> dict | None:
     if raw is None:
         return None
     return {k: v for k, v in raw.items() if k != "password"}
+
+
+# ============================================================
+# [新增] 文件上传安全配置
+# ============================================================
+ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp"}
+
+# 常见图片文件的 Magic Bytes（文件头签名）
+IMAGE_MAGIC_BYTES = {
+    b"\x89PNG\r\n\x1a\n": "png",
+    b"\xff\xd8\xff": "jpg/jpeg",
+    b"GIF87a": "gif",
+    b"GIF89a": "gif",
+    b"RIFF": "webp",
+}
+
+
+def _allowed_file(filename: str) -> bool:
+    """校验文件扩展名是否在白名单内"""
+    if "." not in filename:
+        return False
+    ext = filename.rsplit(".", 1)[1].lower()
+    return ext in ALLOWED_EXTENSIONS
+
+
+def _validate_image_content(data: bytes) -> bool:
+    """校验文件内容是否为真实图片（Magic Byte 检测）"""
+    header = data[:12]
+    for magic, fmt in IMAGE_MAGIC_BYTES.items():
+        if header.startswith(magic):
+            if fmt == "webp":
+                return data[8:12] == b"WEBP"
+            return True
+    if len(header) >= 2 and header[0:2] == b"\xff\xd8":
+        return True
+    return False
 
 
 # ============================================================
@@ -260,6 +299,62 @@ def search():
     username = session.get("username")
     user_info = _safe_user_info(username) if username else None
     return render_template("index.html", user=user_info, search_results=results, keyword=keyword)
+
+
+# ============================================================
+# 路由：上传头像
+# ============================================================
+@app.route("/upload", methods=["GET", "POST"])
+@csrf_required
+def upload():
+    """头像上传，需要登录"""
+    if "username" not in session:
+        return redirect("/login")
+
+    if request.method == "POST":
+        file = request.files.get("file")
+        if file is None or file.filename == "":
+            return render_template("upload.html", error="请选择要上传的文件")
+
+        # [修复] 使用 secure_filename 防止路径遍历
+        original_filename = file.filename
+        safe_filename = secure_filename(original_filename)
+        if not safe_filename:
+            return render_template("upload.html", error="文件名不合法")
+
+        # [修复] 校验文件扩展名（白名单模式）
+        if not _allowed_file(safe_filename):
+            return render_template(
+                "upload.html",
+                error="不支持的文件类型，仅允许上传 JPG/PNG/GIF/WebP 格式的图片",
+            )
+
+        # [修复] 读取文件内容进行 Magic Byte 校验
+        file.seek(0)
+        file_data = file.read()
+        try:
+            if not _validate_image_content(file_data):
+                return render_template("upload.html", error="文件内容不是有效的图片格式")
+        except Exception:
+            return render_template("upload.html", error="文件内容校验失败，请重新上传")
+
+        # [修复] 生成唯一文件名（UUID），防止覆盖
+        file.seek(0)
+        ext = safe_filename.rsplit(".", 1)[1].lower()
+        unique_filename = f"{uuid.uuid4().hex}.{ext}"
+
+        # [修复] 按用户分目录存储
+        username = session["username"]
+        user_upload_dir = os.path.join(app.static_folder, "uploads", username)
+        os.makedirs(user_upload_dir, exist_ok=True)
+
+        save_path = os.path.join(user_upload_dir, unique_filename)
+        file.save(save_path)
+
+        file_url = url_for("static", filename=f"uploads/{username}/{unique_filename}")
+        return render_template("upload.html", file_url=file_url, filename=original_filename)
+
+    return render_template("upload.html")
 
 
 # ============================================================

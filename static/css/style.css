@@ -256,3 +256,70 @@ a {
     border: 1px solid #c6f6d5;
     border-radius: 4px;
 }
+
+/* === Upload === */
+.upload-card {
+    max-width: 480px;
+    margin: 0 auto;
+}
+
+.file-input {
+    width: 100%;
+    padding: 8px 0;
+    font-size: 14px;
+}
+
+.upload-preview {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid #edf2f7;
+    text-align: center;
+}
+
+.upload-preview h3 {
+    font-size: 16px;
+    color: #276749;
+    margin-bottom: 16px;
+}
+
+.preview-img {
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+    margin-bottom: 16px;
+}
+
+.file-link {
+    font-size: 14px;
+    color: #4a5568;
+    margin-bottom: 8px;
+}
+
+.file-link a {
+    color: #667eea;
+    font-weight: 600;
+}
+
+.file-link a:hover {
+    text-decoration: underline;
+}
+
+.file-url-text {
+    font-size: 13px;
+    color: #718096;
+}
+
+.file-url-text code {
+    background: #f7fafc;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+/* === Action Buttons === */
+.action-buttons {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+}
