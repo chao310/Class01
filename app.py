@@ -166,20 +166,50 @@ def init_db():
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             email TEXT,
-            phone TEXT
+            phone TEXT,
+            balance REAL DEFAULT 0
         )
     """)
+    # 迁移：如果旧表缺少 balance 列，则添加
+    cursor.execute("PRAGMA table_info(users)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if "balance" not in columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN balance REAL DEFAULT 0")
+        print("[迁移] 已添加 balance 列到 users 表")
     # 插入默认用户（明文密码），使用 INSERT OR IGNORE 防止重复
     default_users = [
-        ("admin", "admin123", "admin@example.com", "13800138000"),
-        ("alice", "alice2025", "alice@example.com", "13900139001"),
+        ("admin", "admin123", "admin@example.com", "13800138000", 99999),
+        ("alice", "alice2025", "alice@example.com", "13900139001", 100),
     ]
-    for u, p, e, ph in default_users:
+    for u, p, e, ph, b in default_users:
         conn.execute(
-            f"INSERT OR IGNORE INTO users (username, password, email, phone) VALUES ('{u}', '{p}', '{e}', '{ph}')"
+            f"INSERT OR IGNORE INTO users (username, password, email, phone, balance) VALUES ('{u}', '{p}', '{e}', '{ph}', {b})"
         )
+        # 如果默认用户已存在但余额为 0（旧表迁移遗留），更新为正确余额
+        conn.execute(f"UPDATE users SET email = '{e}', phone = '{ph}', balance = {b} WHERE username = '{u}' AND balance = 0")
     conn.commit()
     conn.close()
+
+
+# ============================================================
+# [新增] 全局模板变量：注入当前登录用户的 SQLite ID
+# ============================================================
+@app.context_processor
+def inject_current_user_id():
+    """在所有模板中注入 current_user_id 变量，供导航栏等使用"""
+    username = session.get("username")
+    uid = None
+    if username:
+        try:
+            conn = sqlite3.connect("data/users.db")
+            cursor = conn.execute("SELECT id FROM users WHERE username = ?", (username,))
+            row = cursor.fetchone()
+            if row:
+                uid = row[0]
+            conn.close()
+        except Exception:
+            pass
+    return dict(current_user_id=uid)
 
 
 # ============================================================
@@ -189,7 +219,18 @@ def init_db():
 def index():
     username = session.get("username")
     user_info = _safe_user_info(username) if username else None
-    return render_template("index.html", user=user_info)
+
+    # 获取当前用户的 SQLite user_id（用于个人中心链接）
+    user_id = None
+    if username:
+        conn = sqlite3.connect("data/users.db")
+        cursor = conn.execute("SELECT id FROM users WHERE username = ?", (username,))
+        row = cursor.fetchone()
+        if row:
+            user_id = row[0]
+        conn.close()
+
+    return render_template("index.html", user=user_info, current_user_id=user_id)
 
 
 # ============================================================
@@ -355,6 +396,58 @@ def upload():
         return render_template("upload.html", file_url=file_url, filename=original_filename)
 
     return render_template("upload.html")
+
+
+# ============================================================
+# 路由：个人中心
+# ============================================================
+@app.route("/profile")
+def profile():
+    """个人中心，从 URL 参数获取 user_id，不验证登录用户与 user_id 是否匹配"""
+    user_id = request.args.get("user_id")
+
+    if not user_id:
+        return render_template("profile.html", error="请通过 ?user_id= 参数指定要查看的用户 ID", csrf_token=_generate_csrf_token())
+
+    # 从 SQLite 中根据 user_id 查询用户资料（包含余额）
+    conn = sqlite3.connect("data/users.db")
+    cursor = conn.execute("SELECT id, username, email, phone, balance FROM users WHERE id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if row is None:
+        return render_template("profile.html", error="用户不存在", csrf_token=_generate_csrf_token())
+
+    user_info = {
+        "id": row[0],
+        "username": row[1],
+        "email": row[2] or "",
+        "phone": row[3] or "",
+        "balance": row[4],
+    }
+    return render_template("profile.html", user=user_info, csrf_token=_generate_csrf_token())
+
+
+# ============================================================
+# 路由：充值
+# ============================================================
+@app.route("/recharge", methods=["POST"])
+@csrf_required
+def recharge():
+    """充值，从表单接收 user_id 和 amount，直接累加到余额，不校验 amount 正负"""
+    user_id = request.form.get("user_id")
+    amount = request.form.get("amount")
+
+    if not user_id or not amount:
+        return "参数错误", 400
+
+    # 直接拼接 SQL 更新余额（不校验 amount 正负）
+    conn = sqlite3.connect("data/users.db")
+    conn.execute(f"UPDATE users SET balance = balance + {amount} WHERE id = {user_id}")
+    conn.commit()
+    conn.close()
+
+    return redirect(f"/profile?user_id={user_id}")
 
 
 # ============================================================
