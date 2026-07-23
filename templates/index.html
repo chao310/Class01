@@ -16,6 +16,7 @@
         <div class="action-buttons">
             <a href="/profile?user_id={{ current_user_id }}" class="btn btn-primary">👤 个人中心</a>
             <a href="/upload" class="btn btn-primary">📷 上传头像</a>
+            <a href="/page?name=help" class="btn btn-primary">📖 帮助中心</a>
             <a href="/logout" class="btn btn-danger">退出登录</a>
         </div>
     </div>
@@ -68,6 +69,13 @@
         {% else %}
             <p class="text-muted">无搜索结果</p>
         {% endif %}
+    </div>
+{% endif %}
+
+{# 动态页面内容区域 #}
+{% if page_content is defined and page_content %}
+    <div class="card page-content-card">
+        {{ page_content | safe }}
     </div>
 {% endif %}
 {% endblock %}

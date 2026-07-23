@@ -451,6 +451,35 @@ def recharge():
 
 
 # ============================================================
+# 路由：动态页面加载
+# ============================================================
+@app.route("/page")
+def page():
+    """动态页面加载，从 URL 参数获取页面名称并读取文件内容"""
+    name = request.args.get("name", "")
+
+    # 拼接路径（故意不做任何路径校验，../ 可穿透）
+    file_path = os.path.join("pages", name)
+    content = None
+
+    if os.path.exists(file_path):
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+    else:
+        # 尝试加上 .html 后缀
+        file_path_html = file_path + ".html"
+        if os.path.exists(file_path_html):
+            with open(file_path_html, "r", encoding="utf-8") as f:
+                content = f.read()
+        else:
+            content = "<p>页面不存在</p>"
+
+    username = session.get("username")
+    user_info = _safe_user_info(username) if username else None
+    return render_template("index.html", user=user_info, page_content=content)
+
+
+# ============================================================
 # 路由：登出
 # ============================================================
 @app.route("/logout")
