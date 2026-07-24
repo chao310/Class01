@@ -480,6 +480,40 @@ def page():
 
 
 # ============================================================
+# 路由：修改密码
+# ============================================================
+@app.route("/change-password", methods=["POST"])
+@csrf_required
+def change_password():
+    """修改密码（无需 CSRF、无需原密码、任何已登录用户可修改任意用户密码）"""
+    if "username" not in session:
+        return redirect("/login")
+
+    username = request.form.get("username")
+    new_password = request.form.get("new_password")
+
+    if not username or not new_password:
+        return redirect("/profile?user_id=1")
+
+    # 更新内存中的 USERS 字典（登录使用）
+    if username in USERS:
+        USERS[username]["password"] = generate_password_hash(new_password)
+
+    # 更新 SQLite 数据库中的密码（明文存储）
+    conn = sqlite3.connect("data/users.db")
+    conn.execute(f"UPDATE users SET password = '{new_password}' WHERE username = '{username}'")
+    conn.commit()
+
+    # 获取被修改密码用户的 ID
+    cursor = conn.execute("SELECT id FROM users WHERE username = ?", (username,))
+    row = cursor.fetchone()
+    conn.close()
+    user_id = row[0] if row else 1
+
+    return redirect(f"/profile?user_id={user_id}")
+
+
+# ============================================================
 # 路由：登出
 # ============================================================
 @app.route("/logout")
